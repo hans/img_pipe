@@ -7,6 +7,7 @@ dependencies:
   - eeglabio=0.0.2.post4
   - glib=2.78.4
   - glib-tools=2.78.4
+  - ipyevents
   - mayavi=4.8.1
   - mne-base=1.6
   - mne-qt-browser=0.6
