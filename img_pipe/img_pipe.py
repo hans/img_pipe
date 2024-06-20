@@ -17,6 +17,7 @@ import pickle
 import shutil
 import argparse
 import inspect
+from typing import Optional, Literal
 
 import nibabel as nib
 from tqdm import tqdm
@@ -40,6 +41,7 @@ import nipy.algorithms.registration.histogram_registration
 import struct
 
 from .plotting.mlab_3D_to_2D import get_world_to_view_matrix, get_view_to_display_matrix, apply_transform_to_points
+from .types import Hemisphere
 
 # For animations, from pycortex
 linear = lambda x, y, m: (1.-m)*x + m*y
@@ -48,6 +50,7 @@ mixes = dict(
     smoothstep=(lambda x, y, m: linear(x,y,3*m**2 - 2*m**3)),
     smootherstep=(lambda x, y, m: linear(x, y, 6*m**5 - 15*m**4 + 10*m**3))
 )
+
 
 class freeCoG:
     ''' This defines the class freeCoG, which creates a patient object      
@@ -122,7 +125,7 @@ class freeCoG:
 
     '''
 
-    def __init__(self, subj, hem, zero_indexed_electrodes=True, fs_dir=os.environ['FREESURFER_HOME'], subj_dir=os.environ['SUBJECTS_DIR']):
+    def __init__(self, subj, hem: Hemisphere, zero_indexed_electrodes=True, fs_dir=os.environ['FREESURFER_HOME'], subj_dir=os.environ['SUBJECTS_DIR']):
         '''
         Initializes the patient object.
 
@@ -146,7 +149,7 @@ class freeCoG:
             and related functions for creating surface reconstructions and/or plotting.    
         '''
         # Check if hem is valid
-        if not hem in ['rh', 'lh', 'stereo']:
+        if not hem in [Hemisphere.LEFT, Hemisphere.RIGHT, Hemisphere.STEREO]:
             raise NameError('Invalid hem for freeCoG')
         
         self.subj = subj
@@ -173,10 +176,10 @@ class freeCoG:
 
         # Meshes directory for matlab/python meshes
         self.mesh_dir = os.path.join(self.subj_dir, self.subj, 'Meshes')
-        if self.hem == 'stereo':
+        if self.hem == Hemisphere.STEREO:
             surf_file = os.path.join(self.subj_dir, self.subj, 'Meshes', 'lh_pial_trivert.mat')
         else:
-            surf_file = os.path.join(self.subj_dir, self.subj, 'Meshes', self.hem + '_pial_trivert.mat')
+            surf_file = os.path.join(self.subj_dir, self.subj, 'Meshes', self.hem.name + '_pial_trivert.mat')
         if os.path.isfile(surf_file):
             self.pial_surf_file = dict()
             self.pial_surf_file['lh'] = os.path.join(self.subj_dir, self.subj, 'Meshes', 'lh_pial_trivert.mat')
@@ -644,7 +647,7 @@ class freeCoG:
 
             #mean normal vector should point outwards (laterally, not towards the center of the brain)
             #if it doesn't, flip the mean normal vector
-            if (self.hem=='lh' and mean_normal[0] < 0) or (self.hem=='rh' and mean_normal[0] > 0):
+            if (self.hem==Hemisphere.LEFT and mean_normal[0] < 0) or (self.hem=='rh' and mean_normal[0] > 0):
                 direction = [mean_normal[0],mean_normal[1],mean_normal[2]]
             else:
                 direction = [-1.0*mean_normal[0],-1.0*mean_normal[1],-1.0*mean_normal[2]]
@@ -1544,7 +1547,7 @@ class freeCoG:
             os.mkdir(labels_to_warp_path)
 
         cortex_src = self.get_surf()
-        atlas_file = os.path.join(self.subj_dir, template, 'Meshes', self.hem + '_pial_trivert.mat')
+        atlas_file = os.path.join(self.subj_dir, template, 'Meshes', self.hem.name + '_pial_trivert.mat')
         if not os.path.isfile(atlas_file):
             atlas_patient = freeCoG(subj=template, subj_dir=self.subj_dir, hem=self.hem)
             print("Creating mesh %s" % (atlas_file))
@@ -1870,12 +1873,12 @@ class freeCoG:
             print('File not found: %s'%(elecfile))
         return e
 
-    def get_surf(self, hem='', roi='pial', template=None):
+    def get_surf(self, hem: Optional[Hemisphere] = None, roi='pial', template=None):
         ''' Utility for loading the pial surface for a given hemisphere ('lh' or 'rh') 
         
         Parameters
         ----------
-        hem : {'', 'lh', 'rh'}
+        hem : Hemisphere
             Hemisphere for the surface. If blank, defaults to self.hem
         roi : str
             The region of interest to load.  Should be a Mesh that exists
@@ -1889,14 +1892,14 @@ class freeCoG:
             Dictionary containing 'tri' and 'vert' for the loaded region of interest mesh.
 
         '''
-        if hem == '':
+        if not hem:
             hem = self.hem
         if roi == 'pial':
-            if hem == 'lh' or hem == 'rh':
+            if hem in [Hemisphere.LEFT, Hemisphere.RIGHT]
                 if template == None:
                     cortex = scipy.io.loadmat(self.pial_surf_file[hem])
                 else:
-                    template_file = os.path.join(self.subj_dir, template, 'Meshes', hem+'_pial_trivert.mat')
+                    template_file = os.path.join(self.subj_dir, template, 'Meshes', hem.name+'_pial_trivert.mat')
                     cortex = scipy.io.loadmat(template_file)
             elif hem == 'stereo':
                 cortex = dict()
@@ -1907,7 +1910,7 @@ class freeCoG:
                         template_file = os.path.join(self.subj_dir, template, 'Meshes', h+'_pial_trivert.mat')
                         cortex[h] = scipy.io.loadmat(template_file)
         else: 
-            cortex = scipy.io.loadmat(os.path.join(self.mesh_dir, hem + '_' + roi + '_trivert.mat'))
+            cortex = scipy.io.loadmat(os.path.join(self.mesh_dir, hem.name + '_' + roi + '_trivert.mat'))
         return cortex
 
     class roi:
@@ -2068,11 +2071,11 @@ class freeCoG:
             if roi_name  in ('pial', 'rh_pial', 'lh_pial'):
                 #use pial surface of the entire hemisphere
                 if roi_name in ('pial', 'lh_pial'):
-                    lh_pial = self.get_surf(hem='lh', template=template)
+                    lh_pial = self.get_surf(hem=Hemisphere.LEFT, template=template)
                     mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(lh_pial['tri'], lh_pial['vert'], **kwargs)
 
                 if roi_name in ('pial', 'rh_pial'):
-                    rh_pial = self.get_surf(hem='rh', template=template)
+                    rh_pial = self.get_surf(hem=Hemisphere.RIGHT, template=template)
                     mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(rh_pial['tri'], rh_pial['vert'], **kwargs)
                     
             else:
@@ -2097,9 +2100,9 @@ class freeCoG:
             points = None
         
         if azimuth is None:
-            if self.hem == 'lh':
+            if self.hem == Hemisphere.LEFT:
                 azimuth = 180
-            elif self.hem == 'rh':
+            elif self.hem == Hemisphere.RIGHT:
                 azimuth = 0
             else:
                 azimuth = 90
@@ -2150,9 +2153,9 @@ class freeCoG:
         e = self.get_elecs(elecfile_prefix=elecfile_prefix)
 
         # Plot the pial surface
-        if self.hem == 'lh' or self.hem == 'rh':
+        if self.hem in [Hemisphere.LEFT, Hemisphere.RIGHT]:
             mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(a['tri'], a['vert'], color=(0.8, 0.8, 0.8), opacity=opacity)
-        elif self.hem == 'stereo':
+        elif self.hem == Hemisphere.STEREO:
             mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(a['lh']['tri'], a['lh']['vert'], color=(0.8, 0.8, 0.8), opacity=opacity)
             mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(a['rh']['tri'], a['rh']['vert'], color=(0.8, 0.8, 0.8), opacity=opacity, new_fig=False)
 
@@ -2209,9 +2212,9 @@ class freeCoG:
 
         ctmr_brain_plot.el_add(e['elecmatrix'],elec_colors,numbers=elec_numbers, label_offset=label_offset)
 
-        if self.hem=='lh':
+        if self.hem == Hemisphere.LEFT:
             azimuth=180
-        elif self.hem=='rh':
+        elif self.hem == Hemisphere.RIGHT:
             azimuth=0
         else:
             azimuth=90
@@ -2293,10 +2296,10 @@ class freeCoG:
             #mlab.points3d(elec_coord[0],elec_coord[1],elec_coord[2], scale_factor = 0.25, color = (1.0, 0.0, 0.0), resolution=25)
             erp = erp_matrix[c,:]
 
-            if self.hem == 'lh':
+            if self.hem == Hemisphere.LEFT:
                 label_offset = -2.0
                 y_array = ((np.array([i for i in range(num_timepoints/2-num_timepoints,num_timepoints/2)]))*time_scale_factor+elec_coord[1])[::-1]
-            elif self.hem == 'rh':
+            elif self.hem == Hemisphere.RIGHT:
                 label_offset = 2.0
                 y_array = ((np.array([i for i in range(num_timepoints/2-num_timepoints,num_timepoints/2)]))*time_scale_factor+elec_coord[1])
 
@@ -2394,9 +2397,9 @@ class freeCoG:
 
                     ctmr_brain_plot.el_add(np.atleast_2d(template_e['elecmatrix'][subj_e['anatomy'][:,3]==b,:]), 
                                            color=tuple(el_color), numbers=elec_numbers[subj_e['anatomy'][:,3]==b])
-        if self.hem == 'lh':
+        if self.hem == Hemisphere.LEFT:
             azimuth = 180
-        elif self.hem == 'rh':
+        elif self.hem == Hemisphere.RIGHT:
             azimuth = 0
         mlab.view(azimuth, elevation=90)
 
@@ -2414,7 +2417,8 @@ class freeCoG:
             mlab.show()
         return subj_mesh, template_mesh, mlab
 
-    def make_roi_mesh(self, roi_name, label_list, hem=None, showfig=False, save=True):
+    def make_roi_mesh(self, roi_name, label_list, hem: Optional[Hemisphere] = None,
+                      showfig=False, save=True):
 
         ''' This function makes a mesh for the cortical ROI you are interested in. 
         
@@ -2449,7 +2453,7 @@ class freeCoG:
         '''
 
         if hem==None:
-            if self.hem != 'lh' and self.hem != 'rh':
+            if self.hem not in [Hemisphere.LEFT, Hemisphere.RIGHT]:
                 print('You need to specify which hemisphere this ROI is in. Please try again and specify the hemisphere in the hem argument.')
                 return
             else:
@@ -2495,7 +2499,7 @@ class freeCoG:
         
         return roi_mesh
     
-    def write_to_obj(self, hem=None, roi_name='pial'):
+    def write_to_obj(self, hem: Optional[Hemisphere] = None, roi_name='pial'):
         '''This function writes the mesh for a given roi to .obj format.
         
         Parameters
@@ -2511,7 +2515,7 @@ class freeCoG:
         cortex = self.get_surf(roi=roi_name, hem=hem)
         tri, vert = cortex['tri'], cortex['vert']
 
-        f = open(os.path.join(self.mesh_dir,'%s_%s.obj'%(hem, roi_name)),'w+')
+        f = open(os.path.join(self.mesh_dir,'%s_%s.obj'%(hem.name, roi_name)),'w+')
 
         for row in vert:
             f.write('v %f %f %f\n'%(row[0], row[1], row[2]))
@@ -2521,7 +2525,7 @@ class freeCoG:
 
         f.close()
 
-    def obj_to_mat(self, hem=None, roi_name='pial'):
+    def obj_to_mat(self, hem: Optional[Hemisphere] = None, roi_name='pial'):
         '''This function reads in a .obj file and converts it to .mat format
         to be read into img_pipe or matlab.
 
@@ -2537,7 +2541,7 @@ class freeCoG:
             hem = self.hem
         vertices=[]
         facelines=[]
-        with open(os.path.join(self.mesh_dir, '%s_%s.obj' % (hem, roi_name)), 'r') as f:
+        with open(os.path.join(self.mesh_dir, '%s_%s.obj' % (hem.name, roi_name)), 'r') as f:
             for line in f:
                 if line.startswith("v "):
                     varray=line.replace('\n','')
@@ -2570,11 +2574,11 @@ class freeCoG:
             tri[:, 1] = face[:, 3] - 1
             tri[:, 2] = face[:, 6] - 1
 
-        out_file_trivert = os.path.join(self.mesh_dir, '%s_%s_trivert.mat'%(hem, roi_name))
+        out_file_trivert = os.path.join(self.mesh_dir, '%s_%s_trivert.mat'%(hem.name, roi_name))
         scipy.io.savemat(out_file_trivert, {'tri': tri, 'vert': vert})
 
         cortex = {'tri': tri+1, 'vert': vert}
-        out_file_struct = os.path.join(self.mesh_dir, '%s_%s.mat' % (hem, roi_name))
+        out_file_struct = os.path.join(self.mesh_dir, '%s_%s.mat' % (hem.name, roi_name))
         scipy.io.savemat(out_file_struct, {'cortex': cortex})
 
     def convert_bsmesh2mlab(self, mesh_name='pial.cortex'):
@@ -2684,14 +2688,14 @@ class freeCoG:
         mlab.figure(fgcolor=(0, 0, 0), bgcolor=bgcolor, size=size)
         rois = self.get_rois()
         for roi in tqdm(rois):
-            if 'ctx-' + self.hem + '-' + roi in color_dict:
+            if 'ctx-' + self.hem.name + '-' + roi in color_dict:
                 mesh = self.make_roi_mesh(roi, [roi], save=False)
-                color = np.array(color_dict['ctx-' + self.hem + '-' + roi]) / 255.
+                color = np.array(color_dict['ctx-' + self.hem.name + '-' + roi]) / 255.
                 ctmr_gauss_plot(mesh['tri'], mesh['vert'], color=color, new_fig=False, **kwargs)
 
-        if self.hem == 'lh':
+        if self.hem == Hemisphere.LEFT:
             azimuth = 180
-        elif self.hem == 'rh':
+        elif self.hem == Hemisphere.RIGHT:
             azimuth = 0
         else:
             azimuth = 90
@@ -2707,7 +2711,8 @@ class freeCoG:
         if showfig:
             mlab.show()
 
-    def auto_2D_brain(self, hem=None, azimuth=None, elevation=90,
+    def auto_2D_brain(self, hem: Optional[Hemisphere] = None,
+                      azimuth=None, elevation=90,
                       elecfile_prefix='TDT_elecs_all', template=None,
                       force=False, brain_file=None, elecs_2D_file=None):
         """Generate 2D screenshot of the brain at a specified azimuth and
@@ -2720,7 +2725,7 @@ class freeCoG:
         
         Parameters
         ----------
-        hem : {None, 'lh', 'rh', 'both'}
+        hem : Hemisphere
             Hemisphere to show. If None, defaults to self.hem.  
         azimuth : float
             Azimuth for brain plot. Normally azimuth=180 for lh, azimuth=0 for rh
@@ -2752,16 +2757,16 @@ class freeCoG:
         from PIL import Image
 
         if hem is None:
-            roi_name = self.hem + '_pial'
-        elif hem == 'lh' or hem == 'rh':
-            roi_name = hem + '_pial'
+            roi_name = self.hem.name + '_pial'
+        elif hem in [Hemisphere.LEFT, Hemisphere.RIGHT]:
+            roi_name = hem.name + '_pial'
         else:
             roi_name = 'pial'
 
         if azimuth is None:
-            if self.hem == 'lh':
+            if self.hem == Hemisphere.LEFT:
                 azimuth = 180
-            elif self.hem == 'rh':
+            elif self.hem == Hemisphere.RIGHT:
                 azimuth = 0
             else:
                 azimuth = 90
