@@ -174,7 +174,7 @@ def el_add(elecs, color = (1., 0., 0.), msize = 2, numbers = None, label_offset=
                 cur_kwargs.update(color=tuple(individual_color))
                 points = mlab.points3d(elecs[indices,0],elecs[indices,1],elecs[indices,2], **cur_kwargs)
         else:
-            print('Warning: color array does not match size of electrode matrix')
+            raise ValueError(f'color array ({color.shape[0]}) does not match size of electrode matrix ({elecs.shape[0]})')
 
     # Otherwise, use the same color for all electrodes
     else:
