@@ -32,7 +32,7 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import cm
 
-def ctmr_gauss_plot(tri, vert, color=(0.8, 0.8, 0.8), elecs=None, weights=None,
+def ctmr_gauss_plot(tri, vert, figsize=(1200, 900), color=(0.8, 0.8, 0.8), elecs=None, weights=None,
                     opacity = 1.0, representation='surface', line_width=1.0, gsp = 10,
                     cmap=mpl.cm.get_cmap('RdBu_r'), show_colorbar=True, new_fig=True, vmin=None, vmax=None,
                     ambient=0.4225, specular = 0.333, specular_power = 66, diffuse = 0.6995, interpolation='phong'):
@@ -89,7 +89,7 @@ def ctmr_gauss_plot(tri, vert, color=(0.8, 0.8, 0.8), elecs=None, weights=None,
 
     # plot cortex and begin display
     if new_fig:
-        mlab.figure(fgcolor=(0, 0, 0), bgcolor=(1, 1, 1), size=(1200,900))
+        mlab.figure(fgcolor=(0, 0, 0), bgcolor=(1, 1, 1), size=figsize)
 
     if elecs is not None:
         kwargs = {}
@@ -136,7 +136,9 @@ def ctmr_gauss_plot(tri, vert, color=(0.8, 0.8, 0.8), elecs=None, weights=None,
     return mesh, mlab
 
 
-def el_add(elecs, color = (1., 0., 0.), msize = 2, numbers = None, label_offset=-1.0, ambient = 0.3261, specular = 1, specular_power = 16, diffuse = 0.6995, interpolation = 'phong', **kwargs):
+def el_add(elecs, color = (1., 0., 0.), msize = 2, numbers = None,
+           label_offset=-1.0, label_scale=1., ambient = 0.3261,
+           specular = 1, specular_power = 16, diffuse = 0.6995, interpolation = 'phong', **kwargs):
     '''This function adds the electrode matrix [elecs] (nchans x 3) to
     the scene.
     
@@ -190,6 +192,7 @@ def el_add(elecs, color = (1., 0., 0.), msize = 2, numbers = None, label_offset=
 
     if numbers is not None:
         for ni, n in enumerate(numbers):
-            mayavi.mlab.text3d(elecs[ni,0]+label_offset, elecs[ni,1], elecs[ni,2], str(n), orient_to_camera=True) #line_width=5.0, scale=1.5)
+            mayavi.mlab.text3d(elecs[ni,0]+label_offset, elecs[ni,1], elecs[ni,2], str(n),
+                               orient_to_camera=True, scale=label_scale) #line_width=5.0, scale=1.5)
 
     return points, mlab

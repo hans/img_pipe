@@ -2052,7 +2052,7 @@ class freeCoG:
         import mayavi
         from .plotting import ctmr_brain_plot as ctmr_brain_plot
         
-        fh=mayavi.mlab.figure(fgcolor=(0, 0, 0), bgcolor=(1, 1, 1), size=(1200,900))
+        fh = mayavi.mlab.figure(fgcolor=(0, 0, 0), bgcolor=(1, 1, 1), size=(1200,900))
 
         #if there are any rois with gaussian set to True, don't plot any elecs as points3d, to avoid mixing gaussian representation
         #if needed, simply add the elecs by calling el_add
@@ -2139,7 +2139,7 @@ class freeCoG:
         return mesh, points, mlab, arr, fh
     
     def plot_recon_anatomy(self, elecfile_prefix='TDT_elecs_all', template=None, showfig=True, screenshot=False, 
-                           opacity=1.0, show_numbers=True):
+                           opacity=1.0, show_numbers=1.5, figsize=(1200, 900)):
         '''
         Plot the brain along with all of the anatomically labeled electrodes, colored by location using freesurfer
         color lookup table.
@@ -2166,9 +2166,9 @@ class freeCoG:
 
         # Plot the pial surface
         if self.hem in [Hemisphere.LEFT, Hemisphere.RIGHT]:
-            mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(a['tri'], a['vert'], color=(0.8, 0.8, 0.8), opacity=opacity)
+            mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(a['tri'], a['vert'], color=(0.8, 0.8, 0.8), opacity=opacity, figsize=figsize)
         elif self.hem == Hemisphere.STEREO:
-            mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(a['lh']['tri'], a['lh']['vert'], color=(0.8, 0.8, 0.8), opacity=opacity)
+            mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(a['lh']['tri'], a['lh']['vert'], color=(0.8, 0.8, 0.8), opacity=opacity, figsize=figsize)
             mesh, mlab = ctmr_brain_plot.ctmr_gauss_plot(a['rh']['tri'], a['rh']['vert'], color=(0.8, 0.8, 0.8), opacity=opacity, new_fig=False)
 
         # Add the electrodes, colored by anatomical region
@@ -2222,7 +2222,7 @@ class freeCoG:
         else:
             elec_numbers = None
 
-        ctmr_brain_plot.el_add(e['elecmatrix'],elec_colors,numbers=elec_numbers, label_offset=label_offset)
+        ctmr_brain_plot.el_add(e['elecmatrix'],elec_colors,numbers=elec_numbers, label_offset=label_offset, label_scale=show_numbers)
 
         if self.hem == Hemisphere.LEFT:
             azimuth=180
