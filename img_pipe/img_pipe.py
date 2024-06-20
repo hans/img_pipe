@@ -17,6 +17,8 @@ import pickle
 import shutil
 import argparse
 import inspect
+import logging
+from functools import reduce
 from typing import Optional, Literal
 
 import nibabel as nib
@@ -42,6 +44,8 @@ import struct
 
 from .plotting.mlab_3D_to_2D import get_world_to_view_matrix, get_view_to_display_matrix, apply_transform_to_points
 from .types import Hemisphere
+
+L = logging.getLogger(__name__)
 
 # For animations, from pycortex
 linear = lambda x, y, m: (1.-m)*x + m*y
@@ -1656,7 +1660,7 @@ class freeCoG:
 
     def apply_xfm(self, xfm_dir='mri/transforms', xfm_file='talairach.xfm', 
                   source_file='elecs/TDT_elecs_all.mat', target_file='elecs/TDT_elecs_all_2tal.mat', 
-                  file_type='elecs'):
+                  file_type: Literal["surf", "elecs"] = 'elecs'):
         ''' Apply an xfm transform from freesurfer
         Parameters
         ----------
@@ -1711,7 +1715,7 @@ class freeCoG:
                              {'tri': s['tri'], 'vert': vert_xfm})
 
         else:
-            warning("Please specify file_type = 'surf' or file_type = 'elecs'.")
+            raise ValueError("Please specify file_type = 'surf' or file_type = 'elecs'.")
 
     
     def apply_transform(self, elecfile_prefix, reorient_file):
@@ -1985,8 +1989,8 @@ class freeCoG:
             os.system('mri_annotation2label --subject %s --hemi %s --surface pial --outdir %s'\
                 %(self.subj, 'rh', gyri_labels_dir))
 
-    def plot_brain(self, rois=[roi(name='pial', color=(0.8,0.8,0.8), opacity=1.0, representation='surface', gaussian=False)], elecs=None, 
-                    weights=None, cmap = 'RdBu', showfig=True, screenshot=False, helper_call=False, vmin=None, vmax=None,
+    def plot_brain(self, rois=[roi(name='pial', color=(0.8,0.8,0.8), opacity=1.0, representation='surface', gaussian=False)],
+                   elecs=None, weights=None, cmap = 'RdBu', showfig=True, screenshot=False, helper_call=False, vmin=None, vmax=None,
                     azimuth=None, elevation=90, template=None):
         '''Plots multiple meshes on one figure. Defaults to plotting both hemispheres of the pial surface.
         
@@ -2036,6 +2040,14 @@ class freeCoG:
         >>> elecs = patient.get_elecs()['elecmatrix']
         >>> patient.plot_brain(rois=[pial,hipp],elecs=elecs,weights=np.random.uniform(0,1,(elecs.shape[0])))
         '''
+
+        # Check arguments
+        if elecs is not None:
+            if weights is not None and weights.shape[0] != elecs.shape[0]:
+                raise ValueError("elecs and weights must have the same number of rows")
+        else:
+            if weights is not None:
+                L.warning("Weights provided but no electrodes to plot. Ignoring weights.")
 
         import mayavi
         from .plotting import ctmr_brain_plot as ctmr_brain_plot
@@ -2471,7 +2483,7 @@ class freeCoG:
             all_lines_float = []
             for line in range(len(all_lines_str)):
                 all_lines_float.append([float(x) for x in all_lines_str[line]])
-            verts = np.array(all_lines_float, dtype=np.int)
+            verts = np.array(all_lines_float, dtype=int)
             vertnums.extend(verts[:,0].tolist())
         vertnums = sorted(vertnums)
         roi_mesh['vert'] = cortex['vert'][vertnums, :]
