@@ -27,7 +27,7 @@ import os
 import warnings
 #from PyQt4.QtGui import *
 #from PyQt4.QtCore import *
-from PyQt6.QtWidgets import QWidget, QInputDialog
+from PyQt5.QtWidgets import QWidget, QInputDialog
 from matplotlib.widgets import Slider
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
